@@ -14,6 +14,7 @@ from rich.table import Table
 from rich.text import Text
 
 from .coletor import Resultado
+from .filtro import APRENDIZ, TIPOS, descrever_tipos
 from .geo import distancia_km, formatar_km
 from .modelos import Vaga
 from .regioes import Cidade
@@ -26,6 +27,8 @@ NOMES_FONTES = {
     "trabalhabrasil": "Trabalha Brasil",
     "vagas.com": "Vagas.com.br",
     "bne": "BNE",
+    "ciee": "CIEE",
+    "isbet": "Isbet",
 }
 
 
@@ -84,7 +87,11 @@ def _tabela(
         if v.nova:
             selos.append("NOVA", style="bold green")
         if v.remota and not v.regiao:
-            selos.append(("\n" if v.nova else "") + "VAGA REMOTA", style="bold cyan")
+            selos.append(("\n" if selos else "") + "VAGA REMOTA", style="bold cyan")
+        if v.tipo != APRENDIZ and v.tipo in TIPOS:
+            selos.append(("\n" if selos else "") + TIPOS[v.tipo].upper(), style="bold magenta")
+        if v.sem_experiencia:
+            selos.append(("\n" if selos else "") + "SEM EXPERIÊNCIA OK", style="bold yellow")
         tabela.add_row(
             selos,
             *([Text(descrever_distancia(v), style="bold")] if com_distancia else []),
@@ -169,7 +176,7 @@ def montar_secoes(resultado: Resultado, incluir_sem_local: bool = True) -> list[
 def mostrar(resultado: Resultado, console: Console, mostrar_sem_local: bool = True) -> None:
     filtro = resultado.filtro
     console.print()
-    console.rule(f"[bold]Vagas de Jovem Aprendiz · {filtro.descrever()}")
+    console.rule(f"[bold]Vagas · {descrever_tipos(resultado.tipos)} · {filtro.descrever()}")
     secoes = [s for s in montar_secoes(resultado, mostrar_sem_local) if s.vagas]
     if not secoes:
         console.print("[yellow]Nenhuma vaga encontrada na região pedida.[/]")
@@ -228,6 +235,11 @@ def _linhas(resultado: Resultado) -> list[dict]:
             linhas.append(
                 {
                     "situacao": situacoes.get(id(v), "sem_bairro"),
+                    "tipo": TIPOS.get(v.tipo, v.tipo),
+                    "aceita_sem_experiencia": v.sem_experiencia,
+                    "salario": v.salario,
+                    "horario": v.horario,
+                    "beneficios": v.beneficios,
                     "nova": v.nova,
                     "titulo": v.titulo,
                     "empresa": v.empresa,
@@ -262,6 +274,7 @@ def exportar_csv(resultado: Resultado, caminho: Path) -> None:
 def exportar_json(resultado: Resultado, caminho: Path) -> None:
     dados = {
         "filtro": resultado.filtro.descrever(),
+        "tipos": resultado.tipos,
         "perto_de": resultado.referencia[0] if resultado.referencia else None,
         "executado_em": resultado.executado_em.isoformat(timespec="seconds"),
         "erros": resultado.erros,
@@ -279,7 +292,7 @@ def exportar_html(resultado: Resultado, caminho: Path) -> None:
         for v in vagas:
             itens.append(
                 f"""<li class="vaga">
-  <div class="topo">{'<span class="nova">nova</span>' if v.nova else ''}
+  <div class="topo">{'<span class="nova">nova</span>' if v.nova else ''}{f'<span class="nova">{e(TIPOS[v.tipo].lower())}</span>' if v.tipo != APRENDIZ and v.tipo in TIPOS else ''}{'<span class="nova">aceita sem experiência</span>' if v.sem_experiencia else ''}
     <a href="{e(v.url)}" target="_blank" rel="noopener">{e(v.titulo)}</a></div>
   <div class="empresa">{e(v.empresa or 'Empresa não informada')}</div>
   <div class="meta">{f'<strong>{e(descrever_distancia(v))}</strong>' if com_distancia else ''}<span>{e(descrever_local(v, cidade, com_distrito))}</span>
@@ -296,10 +309,11 @@ def exportar_html(resultado: Resultado, caminho: Path) -> None:
         for s in montar_secoes(resultado)
         if s.vagas
     ) or '<section><p class="vazio">Nenhuma vaga encontrada na região pedida.</p></section>'
+    tipos = e(descrever_tipos(resultado.tipos))
     pagina = f"""<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vagas de Jovem Aprendiz · {e(resultado.filtro.descrever())}</title>
+<title>Vagas · {tipos} · {e(resultado.filtro.descrever())}</title>
 <style>
 :root {{ --bg:#f3f6f6; --card:#fff; --fg:#16302f; --muted:#546b6a; --line:#d3dedd; --accent:#0d7570; --ok:#2f7a3a; }}
 @media (prefers-color-scheme: dark) {{ :root {{ --bg:#0f1a1a; --card:#152424; --fg:#e3eeed; --muted:#93abaa; --line:#26393a; --accent:#4fc3b9; --ok:#7fcf8a; }} }}
@@ -315,7 +329,7 @@ ul {{ list-style:none; margin:0; padding:0; display:grid; gap:.6rem; }}
 .nova {{ font-size:.7rem; font-weight:700; text-transform:uppercase; color:var(--ok); border:1px solid var(--ok); border-radius:99px; padding:.05rem .45rem; margin-right:.4rem; }}
 .vazio {{ color:var(--muted); }}
 </style></head><body><main>
-<header><h1>Vagas de Jovem Aprendiz</h1>
+<header><h1>Vagas · {tipos}</h1>
 <p class="sub">{e(resultado.filtro.descrever())} · gerado em {resultado.executado_em.strftime('%d/%m/%Y %H:%M')}</p></header>
 {secoes}
 {f'<section><h2>Fontes com problema</h2><ul>{erros}</ul></section>' if erros else ''}

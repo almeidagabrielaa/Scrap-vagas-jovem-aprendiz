@@ -4,6 +4,7 @@ import re
 from abc import ABC, abstractmethod
 from datetime import date, datetime
 
+from ..filtro import APRENDIZ
 from ..http import Cliente
 from ..modelos import Vaga
 from ..regioes import Cidade
@@ -25,15 +26,22 @@ class Fonte(ABC):
     titulo: str  # nome exibido
     site: str
 
+    #: Tipos de vaga (veja filtro.TIPOS) que o site sabe listar. Só entra um tipo quando o site tem
+    #: uma busca que traz de fato esse tipo; uma busca por palavra-chave que devolve vagas quaisquer não conta.
+    tipos: frozenset[str] = frozenset({APRENDIZ})
+
     @abstractmethod
-    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int) -> list[Vaga]:
-        """Devolve as vagas de aprendiz que o site lista para a cidade."""
+    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int, tipo: str = APRENDIZ) -> list[Vaga]:
+        """Devolve as vagas do tipo pedido que o site lista para a cidade."""
+
+    #: False quando a listagem já traz descrição e local completos (APIs em JSON): não vale abrir cada anúncio.
+    abrir_anuncios: bool = True
 
     #: True se a fonte sabe listar vagas remotas (home office) de todo o Brasil.
     tem_remotas: bool = False
 
-    async def buscar_remotas(self, cliente: Cliente, max_paginas: int) -> list[Vaga]:
-        """Vagas de aprendiz 100% remotas, de qualquer lugar. Só retorna as que o site marca como remotas."""
+    async def buscar_remotas(self, cliente: Cliente, max_paginas: int, tipo: str = APRENDIZ) -> list[Vaga]:
+        """Vagas 100% remotas do tipo pedido, de qualquer lugar. Só retorna as que o site marca como remotas."""
         return []
 
 
@@ -63,6 +71,15 @@ def data_br(texto: str, hoje: date | None = None) -> date | None:
     if not m.group(3) and d > hoje:
         d = d.replace(year=ano - 1)
     return d
+
+
+def moeda(valor: float | int | str | None) -> str:
+    """820.01 -> "R$ 820,01"."""
+    try:
+        numero = float(valor)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return ""
+    return "R$ " + f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def data_iso(texto: str | None) -> date | None:

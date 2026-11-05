@@ -1,6 +1,7 @@
 """Trabalha Brasil (trabalhabrasil.com.br).
 
 A lista da cidade também mostra vagas de cidades vizinhas; elas são descartadas depois pelo filtro de cidade.
+Meio período usa o filtro de jornada do site (".../meio-periodo"), então essas vagas já vêm marcadas.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
+from ..filtro import APRENDIZ, ESTAGIO, MEIO_PERIODO, PRIMEIRO_EMPREGO
 from ..http import Cliente
 from ..modelos import Vaga
 from ..regioes import Cidade
@@ -16,6 +18,12 @@ from ..texto import espacos, normalizar
 from .base import Fonte, separar_local
 
 SITE = "https://www.trabalhabrasil.com.br"
+CAMINHOS = {
+    APRENDIZ: "jovem-aprendiz",
+    ESTAGIO: "estagiario",
+    MEIO_PERIODO: "meio-periodo",
+    PRIMEIRO_EMPREGO: "primeiro-emprego",
+}
 
 
 def interpretar(pagina: str) -> list[Vaga]:
@@ -47,9 +55,10 @@ class TrabalhaBrasil(Fonte):
     nome = "trabalhabrasil"
     titulo = "Trabalha Brasil"
     site = SITE
+    tipos = frozenset(CAMINHOS)
 
-    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int) -> list[Vaga]:
-        base = f"{SITE}/vagas-de-emprego-em-{cidade.slug}-{cidade.uf.lower()}/jovem-aprendiz"
+    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int, tipo: str = APRENDIZ) -> list[Vaga]:
+        base = f"{SITE}/vagas-de-emprego-em-{cidade.slug}-{cidade.uf.lower()}/{CAMINHOS[tipo]}"
         vagas: list[Vaga] = []
         vistos: set[str] = set()
         for pagina in range(1, max_paginas + 1):
@@ -59,6 +68,8 @@ class TrabalhaBrasil(Fonte):
             if not novas:
                 break
             vistos.update(v.id_fonte for v in novas)
+            for v in novas:
+                v.meio_periodo_na_fonte = tipo == MEIO_PERIODO
             vagas.extend(novas)
             # Quando a lista passa a mostrar só cidades vizinhas, as próximas páginas não interessam.
             if not any(normalizar(v.cidade) == normalizar(cidade.nome) for v in novas):
