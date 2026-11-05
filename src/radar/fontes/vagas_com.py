@@ -1,11 +1,13 @@
-"""Vagas.com.br. Lê só a primeira página (até cerca de 25 vagas)."""
+"""Vagas.com.br. A lista é paginada com `?pagina=N` (o site anuncia a próxima em <link rel="next">)."""
 
 from __future__ import annotations
 
+import re
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
+from ..filtro import APRENDIZ, ESTAGIO
 from ..http import Cliente
 from ..modelos import Vaga
 from ..regioes import Cidade
@@ -13,6 +15,8 @@ from ..texto import espacos
 from .base import Fonte, data_br, separar_local
 
 SITE = "https://www.vagas.com.br"
+_PROXIMA = re.compile(r"<link[^>]+rel=['\"]next['\"]", re.I)
+TERMOS = {APRENDIZ: "aprendiz", ESTAGIO: "estagio"}
 
 
 def interpretar(pagina: str) -> list[Vaga]:
@@ -49,7 +53,19 @@ class VagasCom(Fonte):
     nome = "vagas.com"
     titulo = "Vagas.com.br"
     site = SITE
+    tipos = frozenset(TERMOS)
 
-    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int) -> list[Vaga]:
-        url = f"{SITE}/vagas-de-aprendiz-em-{cidade.slug}"
-        return interpretar((await cliente.get(url)).text)
+    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int, tipo: str = APRENDIZ) -> list[Vaga]:
+        base = f"{SITE}/vagas-de-{TERMOS[tipo]}-em-{cidade.slug}"
+        vagas: list[Vaga] = []
+        vistos: set[str] = set()
+        for pagina in range(1, max_paginas + 1):
+            texto = (await cliente.get(base if pagina == 1 else f"{base}?pagina={pagina}")).text
+            novas = [v for v in interpretar(texto) if v.id_fonte not in vistos]
+            if not novas:
+                break
+            vistos.update(v.id_fonte for v in novas)
+            vagas.extend(novas)
+            if not _PROXIMA.search(texto):
+                break
+        return vagas

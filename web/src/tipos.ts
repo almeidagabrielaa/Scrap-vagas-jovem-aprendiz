@@ -16,18 +16,39 @@ export interface Cidade {
   distritos: Distrito[];
 }
 
+/** Tipo de vaga (chaves de filtro.TIPOS no servidor). */
+export type Tipo = "aprendiz" | "estagio" | "meio_periodo" | "primeiro_emprego";
+
+export interface TipoVaga {
+  nome: Tipo;
+  titulo: string;
+  fontes: string[]; // títulos dos sites que sabem buscar esse tipo
+}
+
 export interface Fonte {
+  nome: string;
+  titulo: string;
+  tipos: Tipo[];
+}
+
+export interface Escolaridade {
   nome: string;
   titulo: string;
 }
 
+export type Turno = "manha" | "tarde" | "noite";
+
 export interface Opcoes {
   cidades: Cidade[];
+  escolaridades: Escolaridade[];
+  turnos: { nome: Turno; titulo: string }[];
+  tipos: TipoVaga[];
   fontes: Fonte[];
 }
 
 /** O que o usuário escolhe no formulário (é o corpo do POST /api/buscar). */
 export interface Busca {
+  tipos: Tipo[];
   cidade: string;
   uf: string | null;
   distritos: string[];
@@ -41,11 +62,15 @@ export interface Busca {
   paginas: number;
   vizinhas: string[]; // cidades vizinhas incluídas na busca
   incluir_remotas: boolean;
+  idade: number | null;
+  escolaridade: string | null; // chave de Opcoes.escolaridades
+  turno_escola: Turno | null; // turno em que a pessoa estuda
 }
 
 export interface Vaga {
   id: string;
   titulo: string;
+  tipo: Tipo;
   empresa: string;
   url: string;
   outrosLinks: { fonte: string; url: string }[];
@@ -53,11 +78,18 @@ export interface Vaga {
   distrito: string | null;
   local: string;
   localPeloCep: boolean;
+  idade: string | null; // faixa pedida no anúncio, ex.: "16 a 22 anos"
+  escolaridade: string | null;
+  horario: string | null;
+  salario: string | null;
+  beneficios: string | null;
+  turnos: Turno[]; // turnos que a jornada ocupa (vazio = anúncio não diz)
   distanciaKm: number | null;
   distancia: string | null;
   publicadaEm: string | null;
   fontes: string;
   nova: boolean;
+  semExperiencia: boolean; // o anúncio diz que aceita quem nunca trabalhou
   remota: boolean;
   cidadeVizinha: string | null;
 }
@@ -70,6 +102,7 @@ export interface Secao {
 
 export interface Resultado {
   filtro: string;
+  tipos: Tipo[];
   pertoDe: string | null;
   executadoEm: string;
   resumo: {
@@ -79,8 +112,10 @@ export interface Resultado {
     vizinhas: number | null;
     remotas: number;
     antigas: number;
+    perfilAvancado: number;
     foraDoFiltro: number;
     foraDoRaio: number;
+    foraDoPerfil: number;
     ocultasSemLocal: number;
   };
   porFonte: Record<string, number>;

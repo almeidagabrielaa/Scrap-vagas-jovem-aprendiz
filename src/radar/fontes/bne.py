@@ -14,6 +14,7 @@ from datetime import date, timedelta
 
 from bs4 import BeautifulSoup
 
+from ..filtro import APRENDIZ, ESTAGIO
 from ..http import Cliente
 from ..modelos import Vaga
 from ..regioes import Cidade
@@ -21,6 +22,7 @@ from ..texto import espacos
 from .base import Fonte, data_iso
 
 SITE = "https://www.bne.com.br"
+FUNCOES = {APRENDIZ: "jovem-aprendiz", ESTAGIO: "estagiario"}
 IDADE_MAXIMA_DIAS = 120
 
 _JSON = re.compile(r'id="jobInfoLocal"\s+value="([^"]*)"')
@@ -69,6 +71,7 @@ class BNE(Fonte):
     titulo = "BNE"
     site = SITE
     tem_remotas = True
+    tipos = frozenset(FUNCOES)
 
     async def _paginas(self, cliente: Cliente, base: str, max_paginas: int, continuar) -> list[Vaga]:
         vagas: list[Vaga] = []
@@ -84,11 +87,11 @@ class BNE(Fonte):
                 break
         return vagas
 
-    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int) -> list[Vaga]:
-        base = f"{SITE}/vagas-de-emprego-para-jovem-aprendiz-em-{cidade.slug}-{cidade.uf.lower()}"
+    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int, tipo: str = APRENDIZ) -> list[Vaga]:
+        base = f"{SITE}/vagas-de-emprego-para-{FUNCOES[tipo]}-em-{cidade.slug}-{cidade.uf.lower()}"
         # As vagas da cidade vêm primeiro; quando a página só tem outras cidades, para.
         return await self._paginas(cliente, base, max_paginas, lambda lidas: any(cidade.eh(v.cidade) for v in lidas))
 
-    async def buscar_remotas(self, cliente: Cliente, max_paginas: int) -> list[Vaga]:
-        vagas = await self._paginas(cliente, f"{SITE}/vagas-de-emprego-para-jovem-aprendiz", max_paginas, lambda _: True)
+    async def buscar_remotas(self, cliente: Cliente, max_paginas: int, tipo: str = APRENDIZ) -> list[Vaga]:
+        vagas = await self._paginas(cliente, f"{SITE}/vagas-de-emprego-para-{FUNCOES[tipo]}", max_paginas, lambda _: True)
         return [v for v in vagas if v.remota]

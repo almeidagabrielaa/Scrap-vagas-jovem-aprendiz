@@ -1,7 +1,7 @@
 import pytest
 
 from radar.coletor import deduplicar
-from radar.filtro import Encaixe, eh_aprendiz, encaixe
+from radar.filtro import APRENDIZ, MEIO_PERIODO, Encaixe, classificar, descrever_tipos, eh_aprendiz, eh_meio_periodo, encaixe
 from radar.modelos import Vaga
 from radar.regioes import RegiaoDesconhecida, carregar, encontrar_cidade, montar_filtro
 
@@ -53,6 +53,33 @@ def test_cidade_fora_do_arquivo_exige_uf():
 )
 def test_eh_aprendiz(vaga, esperado):
     assert eh_aprendiz(vaga) is esperado
+
+
+@pytest.mark.parametrize(
+    "vaga, esperado",
+    [
+        (v(titulo="Vendedor (a) | Part Time - Shopping Leblon"), True),
+        (v(titulo="Assistente de Vendas Part-time"), True),
+        (v(titulo="Atendente", descricao="Vaga de meio período, das 14h às 18h"), True),
+        (v(titulo="Recepcionista", descricao="Jornada de 6 horas diárias"), True),
+        (v(titulo="Auxiliar", descricao="Carga horária: 30h semanais"), True),
+        (v(titulo="Operador de Caixa", meio_periodo_na_fonte=True), True),
+        # "parte do time" não é part-time; horário sem duração também não diz nada
+        (v(titulo="Quer fazer parte do time? Candidate-se"), False),
+        (v(titulo="Auxiliar de Logística", descricao="Horário: 8h às 17h, 44 horas semanais"), False),
+    ],
+)
+def test_eh_meio_periodo(vaga, esperado):
+    assert eh_meio_periodo(vaga) is esperado
+
+
+def test_classificar_respeita_tipos_pedidos_e_prioriza_aprendiz():
+    aprendiz_meio = v(titulo="Jovem Aprendiz", descricao="Jornada de 4 horas diárias")
+    assert classificar(aprendiz_meio, [APRENDIZ, MEIO_PERIODO]) == APRENDIZ
+    assert classificar(aprendiz_meio, [MEIO_PERIODO]) == MEIO_PERIODO
+    assert classificar(v(titulo="Vendedor Part Time"), [APRENDIZ]) is None
+    assert classificar(v(titulo="Vendedor Part Time"), [APRENDIZ, MEIO_PERIODO]) == MEIO_PERIODO
+    assert descrever_tipos([APRENDIZ, MEIO_PERIODO]) == "Jovem aprendiz e meio período"
 
 
 def test_encaixe_por_distrito(cabo_frio):
@@ -110,3 +137,54 @@ def test_escolher_vizinhas(cabo_frio):
     assert len(escolher_vizinhas(cabo_frio, [], todas=True)) == len(cabo_frio.vizinhas)
     with pytest.raises(RegiaoDesconhecida):
         escolher_vizinhas(cabo_frio, ["Niterói"])
+
+
+@pytest.mark.parametrize(
+    "vaga, esperado",
+    [
+        (v(titulo="Vaga de Dentista"), True),
+        (v(titulo="Gerente Farmacêutico | Rio Das Ostras"), True),
+        (v(titulo="Subgerente De Loja - Araruama"), True),
+        (v(titulo="Analista De Atendimento", descricao="Requisitos: ensino superior completo"), True),
+        (v(titulo="Vendedor", descricao="Experiência mínima de 2 anos na função"), True),
+        (v(titulo="ATENDENTE DE RESTAURANTE PART TIME"), False),
+        (v(titulo="Promotor De Vendas (PART TIME)"), False),
+        (v(titulo="Ajudante De Cozinha"), False),
+        (v(titulo="Operador De Caixa", descricao="Não precisa de experiência"), False),
+    ],
+)
+def test_perfil_avancado(vaga, esperado):
+    from radar.filtro import perfil_avancado
+
+    assert perfil_avancado(vaga) is esperado
+
+
+def test_estagio_vira_tipo_proprio():
+    from radar.filtro import ESTAGIO
+
+    tipos = [APRENDIZ, ESTAGIO, MEIO_PERIODO]
+    assert classificar(v(titulo="Estágio em Administração (Recepção)"), tipos) == ESTAGIO
+    assert classificar(v(titulo="Vaga de Estagiário", descricao="6 horas diárias"), tipos) == ESTAGIO
+    assert classificar(v(titulo="Assistente", estagio_na_fonte=True), tipos) == ESTAGIO
+    assert classificar(v(titulo="Auxiliar", descricao="Contrato de estágio conforme Lei 11.788"), tipos) == ESTAGIO
+    # Estágio continua fora quando só aprendiz foi pedido; "Estágio / Jovem Aprendiz" é aprendiz.
+    assert classificar(v(titulo="Estágio em Marketing"), [APRENDIZ]) is None
+    assert classificar(v(titulo="Estágio / Jovem Aprendiz"), tipos) == APRENDIZ
+
+
+@pytest.mark.parametrize(
+    "texto, esperado",
+    [
+        ("Não exigimos experiência, oferecemos treinamento", True),
+        ("Vaga para primeiro emprego", True),
+        ("Experiência não é obrigatória", True),
+        ("Atendente sem experiência", True),
+        ("Experiência desejável no atendimento", False),
+        ("Não aceitamos candidatos sem experiência", False),
+        ("Padeiro - com experiência", False),
+    ],
+)
+def test_aceita_sem_experiencia(texto, esperado):
+    from radar.filtro import aceita_sem_experiencia
+
+    assert aceita_sem_experiencia(v(titulo="Atendente", descricao=texto)) is esperado

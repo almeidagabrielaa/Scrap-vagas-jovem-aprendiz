@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { buscar, carregarOpcoes } from "./api";
-import { Filtros } from "./Filtros";
+import { Filtros } from "./filtros/Filtros";
+import { TIPOS_CONHECIDOS } from "./filtros/resumo";
+import { Guia } from "./Guia";
 import { Resultados, type Estado } from "./Resultados";
 import type { Busca, Opcoes } from "./tipos";
 
 const BUSCA_PADRAO: Busca = {
+  tipos: ["aprendiz"],
   cidade: "Cabo Frio",
   uf: null,
   distritos: [],
@@ -18,6 +21,9 @@ const BUSCA_PADRAO: Busca = {
   paginas: 3,
   vizinhas: ["Arraial do Cabo", "Armação dos Búzios"],
   incluir_remotas: true,
+  idade: null,
+  escolaridade: null,
+  turno_escola: null,
 };
 
 const CHAVE = "fmt-jovem-aprendiz:busca";
@@ -25,18 +31,49 @@ const CHAVE = "fmt-jovem-aprendiz:busca";
 function buscaSalva(): Busca {
   try {
     const salva = localStorage.getItem(CHAVE);
-    return salva ? { ...BUSCA_PADRAO, ...JSON.parse(salva) } : BUSCA_PADRAO;
+    if (!salva) return BUSCA_PADRAO;
+    const busca: Busca = { ...BUSCA_PADRAO, ...JSON.parse(salva) };
+    // Busca salva por uma versão antiga (sem tipos) ou com tipo que não existe mais.
+    busca.tipos = busca.tipos.filter((t) => TIPOS_CONHECIDOS.includes(t));
+    if (!busca.tipos.length) busca.tipos = BUSCA_PADRAO.tipos;
+    return busca;
   } catch {
     return BUSCA_PADRAO;
   }
 }
 
+/** Evento do Chrome/Edge/Android que permite mostrar um botão "Instalar app". */
+interface PedidoInstalacao extends Event {
+  prompt: () => Promise<void>;
+}
+
+function useInstalacao() {
+  const [pedido, setPedido] = useState<PedidoInstalacao | null>(null);
+  useEffect(() => {
+    const guardar = (e: Event) => {
+      e.preventDefault(); // o navegador não mostra a faixa dele: a gente mostra o botão
+      setPedido(e as PedidoInstalacao);
+    };
+    const instalado = () => setPedido(null);
+    window.addEventListener("beforeinstallprompt", guardar);
+    window.addEventListener("appinstalled", instalado);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", guardar);
+      window.removeEventListener("appinstalled", instalado);
+    };
+  }, []);
+  return pedido && (() => pedido.prompt().finally(() => setPedido(null)));
+}
+
 export default function App() {
+  const [aba, setAba] = useState<"vagas" | "guia">("vagas");
+  const instalar = useInstalacao();
   const [opcoes, setOpcoes] = useState<Opcoes | null>(null);
   const [erroOpcoes, setErroOpcoes] = useState<string | null>(null);
   const [busca, setBusca] = useState<Busca>(buscaSalva);
   const [estado, setEstado] = useState<Estado>({ fase: "inicio" });
   const cancelar = useRef<AbortController | null>(null);
+  const turnoDaBusca = useRef<Busca["turno_escola"]>(null); // turno usado na busca exibida, não o atual do formulário
 
   useEffect(() => {
     carregarOpcoes()
@@ -56,6 +93,7 @@ export default function App() {
     const controle = new AbortController();
     cancelar.current = controle;
     const avisos: string[] = [];
+    turnoDaBusca.current = busca.turno_escola;
     setEstado({ fase: "rodando", avisos, inicio: Date.now() });
     try {
       await buscar(
@@ -98,11 +136,26 @@ export default function App() {
           <h1>
             FMT - <span className="destaque-titulo">jovem aprendiz</span>
           </h1>
-          <p>Teu primeiro trampo tá mais perto do que tu pensa. Bora achar? ✌️</p>
+          <p>Teu primeiro trampo (aprendiz, estágio ou meio período) tá mais perto do que tu pensa. Bora achar? ✌️</p>
         </div>
+        <nav className="abas" aria-label="Seções">
+          <button type="button" className={`chip${aba === "vagas" ? " marcado" : ""}`} aria-pressed={aba === "vagas"} onClick={() => setAba("vagas")}>
+            🔎 Vagas
+          </button>
+          <button type="button" className={`chip${aba === "guia" ? " marcado" : ""}`} aria-pressed={aba === "guia"} onClick={() => setAba("guia")}>
+            📘 Guia do primeiro trampo
+          </button>
+          {instalar && (
+            <button type="button" className="chip instalar" onClick={instalar}>
+              📲 Instalar app
+            </button>
+          )}
+        </nav>
       </header>
 
-      <main className="layout">
+      {aba === "guia" && <Guia />}
+
+      <main className="layout" hidden={aba !== "vagas"}>
         <aside className="lateral">
           {opcoes ? (
             <Filtros
@@ -127,7 +180,7 @@ export default function App() {
           )}
         </aside>
         <div className="conteudo">
-          <Resultados estado={estado} />
+          <Resultados estado={estado} turnoEscola={estado.fase === "pronto" ? turnoDaBusca.current : null} />
         </div>
       </main>
     </div>

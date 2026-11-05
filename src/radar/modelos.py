@@ -20,7 +20,19 @@ class Vaga:
     cep: str | None = None
     publicada_em: date | None = None
     eh_aprendiz_na_fonte: bool = False  # a própria fonte classifica como aprendiz
+    estagio_na_fonte: bool = False  # a própria fonte classifica como estágio
+    meio_periodo_na_fonte: bool = False  # veio de um filtro de jornada parcial do próprio site
     remota: bool = False  # a fonte marca a vaga como home office / 100% remota
+    sem_experiencia: bool = False  # o anúncio diz que aceita quem nunca trabalhou (filtro.aceita_sem_experiencia)
+
+    # O que a vaga oferece, quando a fonte informa (CIEE, Isbet e o texto do anúncio). Texto pronto para exibir.
+    salario: str = ""  # "R$ 820,01/mês"
+    horario: str = ""  # "08:00 às 12:00"
+    escolaridade: str = ""  # "Ensino médio"
+    beneficios: str = ""  # "Vale transporte, Vale refeição"
+
+    # Tipo de vaga decidido pelo filtro: um dos tipos de filtro.TIPOS.
+    tipo: str = ""
 
     # Cidade da busca a que a vaga pertence (a principal ou uma vizinha); vazio nas remotas.
     regiao: str = ""

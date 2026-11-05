@@ -10,7 +10,17 @@ from typing import Callable
 import httpx
 
 from . import detalhes as det
-from .filtro import Encaixe, eh_aprendiz, encaixe
+from . import oferta, perfil
+from .filtro import (
+    APRENDIZ,
+    TIPOS,
+    Encaixe,
+    aceita_sem_experiencia,
+    classificar,
+    descrever_tipos,
+    encaixe,
+    perfil_avancado,
+)
 from .fontes import Fonte
 from .geo import Coordenadas, Geocodificador, distancia_km
 from .historico import Historico
@@ -27,6 +37,10 @@ class ReferenciaNaoEncontrada(ValueError):
     pass
 
 
+class BuscaInvalida(ValueError):
+    """Tipo de vaga desconhecido ou nenhuma fonte escolhida sabe buscar os tipos pedidos."""
+
+
 # Distância máxima aceita entre o endereço geocodificado e o centro do bairro da vaga.
 LIMITE_ENDERECO_KM = 4.0
 
@@ -37,6 +51,7 @@ IDADE_MAXIMA_DIAS = 180
 @dataclass
 class Resultado:
     filtro: FiltroRegiao
+    tipos: list[str] = field(default_factory=lambda: [APRENDIZ])  # tipos de vaga procurados
     confirmadas: list[Vaga] = field(default_factory=list)  # local dentro do filtro
     sem_local: list[Vaga] = field(default_factory=list)  # anúncio não diz bairro/distrito
     vizinhas: list[Vaga] = field(default_factory=list)  # vagas das cidades vizinhas (se pedido)
@@ -44,7 +59,9 @@ class Resultado:
     cidades_vizinhas: list[Cidade] = field(default_factory=list)  # vizinhas consultadas
     fora_do_filtro: int = 0
     antigas: int = 0  # anúncios publicados há mais de IDADE_MAXIMA_DIAS
+    perfil_avancado: int = 0  # não aprendiz que pedem faculdade, liderança ou experiência (ocultas)
     fora_do_raio: int = 0
+    fora_do_perfil: int = 0  # pedem outra idade/escolaridade ou batem com o turno da escola
     ocultas_sem_local: int = 0
     por_fonte: dict[str, int] = field(default_factory=dict)
     erros: dict[str, str] = field(default_factory=dict)
@@ -71,33 +88,37 @@ async def _buscar_fontes(
     cliente: Cliente,
     fontes: list[Fonte],
     cidades: list[Cidade],
+    tipos: list[str],
     remotas: bool,
     max_paginas: int,
     resultado: Resultado,
     aviso: Aviso,
 ) -> list[Vaga]:
-    """Cada fonte percorre as cidades em sequência (respeitando a pausa por site); as fontes rodam em paralelo."""
+    """Cada fonte percorre tipos e cidades em sequência (respeitando a pausa por site); as fontes rodam em paralelo."""
 
     async def uma(fonte: Fonte) -> list[Vaga]:
         achadas: list[Vaga] = []
         falhas: list[str] = []
-        for cidade in cidades:
-            try:
-                vagas = await fonte.buscar(cliente, cidade, max_paginas)
-            except Exception as e:  # uma fonte quebrada não derruba as outras
-                falhas.append(f"{cidade.nome}: {_descrever_erro(e)}")
-                continue
-            for v in vagas:
-                if cidade.eh(v.cidade) and v.uf.upper() in ("", cidade.uf):
-                    v.regiao = cidade.nome
-                    achadas.append(v)
-        if remotas and fonte.tem_remotas:
-            try:
-                for v in await fonte.buscar_remotas(cliente, max_paginas):
-                    v.regiao = ""
-                    achadas.append(v)
-            except Exception as e:
-                falhas.append(f"remotas: {_descrever_erro(e)}")
+        meus_tipos = [t for t in tipos if t in fonte.tipos]
+        rotulo = (lambda t: f"{TIPOS[t].lower()}, ") if len(meus_tipos) > 1 else (lambda t: "")
+        for tipo in meus_tipos:
+            for cidade in cidades:
+                try:
+                    vagas = await fonte.buscar(cliente, cidade, max_paginas, tipo)
+                except Exception as e:  # uma fonte quebrada não derruba as outras
+                    falhas.append(f"{rotulo(tipo)}{cidade.nome}: {_descrever_erro(e)}")
+                    continue
+                for v in vagas:
+                    if cidade.eh(v.cidade) and v.uf.upper() in ("", cidade.uf):
+                        v.regiao = cidade.nome
+                        achadas.append(v)
+            if remotas and fonte.tem_remotas:
+                try:
+                    for v in await fonte.buscar_remotas(cliente, max_paginas, tipo):
+                        v.regiao = ""
+                        achadas.append(v)
+                except Exception as e:
+                    falhas.append(f"{rotulo(tipo)}remotas: {_descrever_erro(e)}")
         if falhas:
             resultado.erros[fonte.titulo] = "; ".join(falhas)
             aviso(f"[yellow]{fonte.titulo}[/]: {resultado.erros[fonte.titulo]}")
@@ -112,10 +133,15 @@ async def _buscar_fontes(
         return achadas
 
     listas = await asyncio.gather(*(uma(f) for f in fontes))
-    # A mesma vaga pode vir em duas buscas do mesmo site (ex.: lista da cidade e lista de remotas).
+    # A mesma vaga pode vir em duas buscas do mesmo site (ex.: lista da cidade e lista de remotas,
+    # ou a busca de aprendiz e a de meio período). Fica a primeira, somando o que cada busca sabia.
     unicas: dict[str, Vaga] = {}
     for v in (v for lista in listas for v in lista):
-        unicas.setdefault(v.chave, v)
+        primeira = unicas.setdefault(v.chave, v)
+        if primeira is not v:
+            primeira.meio_periodo_na_fonte |= v.meio_periodo_na_fonte
+            primeira.eh_aprendiz_na_fonte |= v.eh_aprendiz_na_fonte
+            primeira.regiao = primeira.regiao or v.regiao
     return list(unicas.values())
 
 
@@ -217,6 +243,9 @@ def deduplicar(vagas: list[Vaga]) -> list[Vaga]:
         elif principal.distrito is None and vaga.distrito is not None:
             principal.distrito, principal.evidencia_local = vaga.distrito, vaga.evidencia_local
         principal.publicada_em = principal.publicada_em or vaga.publicada_em
+        principal.sem_experiencia |= vaga.sem_experiencia
+        if vaga.tipo == APRENDIZ:  # um site disse aprendiz, outro só meio período: vale aprendiz
+            principal.tipo = APRENDIZ
     return list(unicas.values())
 
 
@@ -235,9 +264,21 @@ async def coletar(
     perto_de: str | None = None,
     vizinhas: list[Cidade] | None = None,
     incluir_remotas: bool = False,
+    tipos: list[str] | None = None,
 ) -> Resultado:
-    """`vizinhas`: cidades buscadas junto com a principal (veja `escolher_vizinhas`)."""
-    resultado = Resultado(filtro=filtro)
+    """`vizinhas`: cidades buscadas junto com a principal (veja `escolher_vizinhas`).
+    `tipos`: tipos de vaga procurados (chaves de `filtro.TIPOS`); o padrão é só aprendiz."""
+    tipos = list(dict.fromkeys(tipos or [APRENDIZ]))
+    desconhecidos = [t for t in tipos if t not in TIPOS]
+    if desconhecidos:
+        raise BuscaInvalida(f"Tipo(s) de vaga desconhecido(s): {', '.join(desconhecidos)}")
+    # Fonte que não tem nenhum dos tipos pedidos não entra (nem aparece com "0 vagas").
+    fontes = [f for f in fontes if f.tipos.intersection(tipos)]
+    if not fontes:
+        raise BuscaInvalida(
+            f"Nenhum dos sites escolhidos tem vagas de {descrever_tipos(tipos).lower()}. Marque outros sites."
+        )
+    resultado = Resultado(filtro=filtro, tipos=tipos)
     principal = filtro.cidade
     if vizinhas:
         resultado.cidades_vizinhas = list(vizinhas)
@@ -254,7 +295,7 @@ async def coletar(
             aviso(f"Ponto de referência: {resultado.referencia[0]}")
 
         cidades = [principal, *resultado.cidades_vizinhas]
-        vagas = await _buscar_fontes(cliente, fontes, cidades, incluir_remotas, max_paginas, resultado, aviso)
+        vagas = await _buscar_fontes(cliente, fontes, cidades, tipos, incluir_remotas, max_paginas, resultado, aviso)
 
         limite = date.today().toordinal() - IDADE_MAXIMA_DIAS
         recentes = [v for v in vagas if not v.publicada_em or v.publicada_em.toordinal() >= limite]
@@ -262,10 +303,19 @@ async def coletar(
         vagas = recentes
 
         # Só as vagas da cidade principal precisam de bairro; as outras ficam no nível da cidade.
-        da_principal = [v for v in vagas if v.regiao == principal.nome]
+        sem_anuncio = {f.nome for f in fontes if not f.abrir_anuncios}
+        da_principal = [v for v in vagas if v.regiao == principal.nome and v.fonte not in sem_anuncio]
         if ler_detalhes and da_principal:
             await _completar_detalhes(cliente, da_principal, aviso)
-        vagas = [v for v in vagas if eh_aprendiz(v)]
+        for v in vagas:
+            v.tipo = classificar(v, tipos) or ""
+            v.sem_experiencia = aceita_sem_experiencia(v)
+            oferta.completar(v)
+        vagas = [v for v in vagas if v.tipo]
+        # Fora do contrato de aprendiz, sobra muita vaga para quem já tem formação ou experiência.
+        de_entrada = [v for v in vagas if v.tipo == APRENDIZ or not perfil_avancado(v)]
+        resultado.perfil_avancado = len(vagas) - len(de_entrada)
+        vagas = de_entrada
         await _localizar(cliente, historico, Localizador(principal), [v for v in vagas if v.regiao == principal.nome])
 
         vagas = deduplicar(vagas)
@@ -298,9 +348,22 @@ async def coletar(
 
 
 def pos_filtrar(
-    resultado: Resultado, *, novas: bool = False, somente_com_bairro: bool = False, raio: float | None = None
+    resultado: Resultado,
+    *,
+    novas: bool = False,
+    somente_com_bairro: bool = False,
+    raio: float | None = None,
+    idade: int | None = None,
+    escolaridade: str | None = None,
+    turno_escola: str | None = None,
 ) -> None:
     """Filtros aplicados depois da busca (os mesmos na linha de comando e na interface web)."""
+    if idade is not None or escolaridade or turno_escola:
+        listas = ("confirmadas", "sem_local", "vizinhas", "remotas")
+        antes = sum(len(getattr(resultado, n)) for n in listas)
+        for n in listas:
+            setattr(resultado, n, [v for v in getattr(resultado, n) if perfil.combina(v, idade, escolaridade, turno_escola)])
+        resultado.fora_do_perfil = antes - sum(len(getattr(resultado, n)) for n in listas)
     if somente_com_bairro:
         # Sem filtro de região, as vagas sem local ficam em "confirmadas"; por isso olha as duas listas.
         com_local = [v for v in resultado.confirmadas if v.distrito is not None]

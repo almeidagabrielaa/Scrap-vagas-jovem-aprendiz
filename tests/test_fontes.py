@@ -172,3 +172,61 @@ def test_infojobs_marca_home_office():
     </div>"""
     a, b = infojobs.interpretar(html)
     assert a.remota and not b.remota  # vale a etiqueta de modalidade, não o título
+
+
+def test_fontes_declaram_os_tipos_que_buscam():
+    from radar.filtro import APRENDIZ, ESTAGIO, MEIO_PERIODO
+    from radar.fontes import TODAS
+
+    assert all(APRENDIZ in f.tipos and ESTAGIO in f.tipos for f in TODAS.values())
+    # Só entram em meio período os sites com busca que traz de fato vagas de jornada parcial.
+    assert {n for n, f in TODAS.items() if MEIO_PERIODO in f.tipos} == {"gupy", "infojobs", "trabalhabrasil"}
+
+
+def test_paginacao_infojobs_e_vagas_com():
+    pagina = '<input type="hidden" id="hdn_ListURL" value="https://www.infojobs.com.br/vagas-de-emprego-aprendiz-em-sao-paulo,-sp.aspx" />'
+    assert infojobs._LISTA.search(pagina).group(1).endswith("sao-paulo,-sp.aspx")
+    assert vagas_com._PROXIMA.search("<link rel='next' href='?pagina=2' />")
+    assert not vagas_com._PROXIMA.search("<link rel='prev' href='?pagina=1' />")
+
+
+def test_ciee():
+    from radar.fontes import ciee
+
+    dados = {"totalPages": 1, "content": [{
+        "codigoVaga": 6264135, "tipoVaga": "APRENDIZ", "nomeEmpresa": "ASSOCIACAO MINAS PRAIA",
+        "areaAtuacao": "Arco Administrativo", "salario": 820.01, "bolsaAuxilio": None,
+        "beneficios": [{"codigo": 1, "beneficio": "Vale transporte", "valor": 0}],
+        "descricao": "Clubes sociais", "local": {"endereco": None, "bairro": "Centro", "cep": None,
+                                                  "cidade": "Cabo Frio", "uf": "RJ"},
+        "horarioEntrada": "08:00:00", "horarioSaida": "12:00:00", "atividades": ["Arquivar documentos"],
+        "nivelEscolar": "EM",
+    }]}
+    [v] = ciee.interpretar(dados)
+    assert (v.titulo, v.cidade, v.uf, v.endereco) == ("Jovem Aprendiz - Arco Administrativo", "Cabo Frio", "RJ", "Centro")
+    assert (v.salario, v.horario, v.escolaridade, v.beneficios) == ("R$ 820,01/mês", "08:00 às 12:00", "Ensino médio", "Vale transporte")
+    assert v.eh_aprendiz_na_fonte and not v.estagio_na_fonte
+    assert v.url.endswith("codigoVaga=6264135")
+
+
+def test_isbet():
+    from radar.fontes import isbet
+
+    dados = {"success": True, "data": {"paginacao": {"paginaAtual": 1, "totalPaginas": 4}, "lista_vagas": [{
+        "id_vaga": 158946, "tipo_programa": "J", "localidade": "Macaé", "curso_formacao": "Elétrica",
+        "salario": 1142.33, "salario_descricao": "R$ 1.142,33", "url_processo_seletivo": "https://isbet.org.br/login?idv=158946",
+        "hh_diaria": "6", "objeto_municipio": {"cd_uf": "RJ", "nm_municipio": "Macaé"}, "atividades": "Apoio em campo",
+        "horario_inicio_trabalho": "09:00", "horario_fim_trabalho": "15:00", "beneficios": "Vale transporte",
+        "cep_trabalho": "27946190",
+    }]}}
+    [v], paginas = isbet.interpretar(dados)
+    assert paginas == 4
+    assert (v.titulo, v.cidade, v.uf, v.cep) == ("Jovem Aprendiz - Elétrica", "Macaé", "RJ", "27946190")
+    assert (v.salario, v.horario) == ("R$ 1.142,33/mês", "09:00 às 15:00 (6h por dia)")
+    assert v.eh_aprendiz_na_fonte
+
+
+def test_moeda():
+    from radar.fontes.base import moeda
+
+    assert moeda(1142.33) == "R$ 1.142,33" and moeda(800) == "R$ 800,00" and moeda(None) == ""

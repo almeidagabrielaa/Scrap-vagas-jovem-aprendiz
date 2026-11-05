@@ -1,0 +1,16 @@
+{
+  "name": "FMT - jovem aprendiz",
+  "short_name": "FMT Vagas",
+  "description": "Vagas de jovem aprendiz, estágio, meio período e primeiro emprego perto de ti.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3edff",
+  "theme_color": "#ff3d8b",
+  "icons": [
+    { "src": "/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

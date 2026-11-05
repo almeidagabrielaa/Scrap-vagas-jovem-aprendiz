@@ -1,6 +1,6 @@
 """API HTTP usada pela interface web (React).
 
-- GET  /api/opcoes  -> cidades, distritos, bairros e fontes disponíveis
+- GET  /api/opcoes  -> cidades, distritos, bairros, tipos de vaga e fontes disponíveis
 - POST /api/buscar  -> roda a busca. Responde em NDJSON (uma linha JSON por evento):
       {"tipo": "aviso", "mensagem": "..."}       progresso
       {"tipo": "resultado", ...}                 resultado final
@@ -21,9 +21,10 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import links
+from . import links, perfil
 from . import regioes as reg
-from .coletor import ReferenciaNaoEncontrada, Resultado, coletar, pos_filtrar
+from .coletor import BuscaInvalida, ReferenciaNaoEncontrada, Resultado, coletar, pos_filtrar
+from .filtro import APRENDIZ, TIPOS
 from .fontes import TODAS
 from .historico import CAMINHO_PADRAO, Historico
 from .modelos import Vaga
@@ -36,6 +37,7 @@ _uma_busca_por_vez = asyncio.Lock()
 
 
 class Busca(BaseModel):
+    tipos: list[str] = Field(default_factory=lambda: [APRENDIZ])  # chaves de filtro.TIPOS
     cidade: str = "Cabo Frio"
     uf: Optional[str] = None
     distritos: list[str] = Field(default_factory=list)
@@ -49,6 +51,9 @@ class Busca(BaseModel):
     paginas: int = Field(default=3, ge=1, le=20)
     vizinhas: list[str] = Field(default_factory=list)  # nomes das cidades vizinhas a incluir
     incluir_remotas: bool = False
+    idade: Optional[int] = Field(default=None, ge=14, le=29)
+    escolaridade: Optional[str] = None  # chave de perfil.ESCOLARIDADES
+    turno_escola: Optional[str] = None  # chave de perfil.TURNOS: em que turno a pessoa estuda
 
 
 @app.get("/api/opcoes")
@@ -70,7 +75,38 @@ def opcoes() -> dict:
                 ],
             }
         )
-    return {"cidades": cidades, "fontes": [{"nome": f.nome, "titulo": f.titulo} for f in TODAS.values()]}
+    return {
+        "cidades": cidades,
+        "turnos": [{"nome": k, "titulo": t} for k, t in perfil.TURNOS.items()],
+        "escolaridades": [{"nome": k, "titulo": t} for k, (t, _) in perfil.ESCOLARIDADES.items()],
+        "tipos": [
+            {"nome": nome, "titulo": titulo, "fontes": [f.titulo for f in TODAS.values() if nome in f.tipos]}
+            for nome, titulo in TIPOS.items()
+        ],
+        "fontes": [{"nome": f.nome, "titulo": f.titulo, "tipos": sorted(f.tipos)} for f in TODAS.values()],
+    }
+
+
+def _faixa(v: Vaga) -> str | None:
+    minima, maxima = perfil.faixa_de_idade(v)
+    if minima and maxima:
+        return f"{minima} a {maxima} anos"
+    if minima:
+        return f"a partir de {minima} anos"
+    return f"até {maxima} anos" if maxima else None
+
+
+_NOMES_NIVEIS = {perfil.FUNDAMENTAL: "ensino fundamental", perfil.MEDIO: "ensino médio",
+                 perfil.TECNICO: "curso técnico", perfil.SUPERIOR: "faculdade"}
+_MODOS = {"cursando": "Cursando {}", "completo": "{} completo", "minimo": "A partir do {}"}
+
+
+def _escolaridade(v: Vaga) -> str | None:
+    exigencia = perfil.exigencia_escolar(v)
+    if exigencia is None:
+        return v.escolaridade or None
+    texto = _MODOS[exigencia.modo].format(_NOMES_NIVEIS[exigencia.nivel])
+    return texto[:1].upper() + texto[1:]
 
 
 def _vaga_json(v: Vaga, cidade: reg.Cidade, com_distrito: bool) -> dict:
@@ -78,18 +114,26 @@ def _vaga_json(v: Vaga, cidade: reg.Cidade, com_distrito: bool) -> dict:
     return {
         "id": v.chave,
         "titulo": v.titulo,
+        "tipo": v.tipo,
         "empresa": v.empresa,
         "url": v.url,
         "outrosLinks": [{"fonte": f, "url": u} for f, _, u in v.outras_fontes],
         "bairro": v.bairro,
         "distrito": distrito.nome if distrito else None,
         "local": descrever_local(v, cidade, com_distrito),
+        "idade": _faixa(v),
+        "escolaridade": _escolaridade(v),
+        "horario": v.horario or None,
+        "salario": v.salario or None,
+        "beneficios": v.beneficios or None,
+        "turnos": sorted(perfil.turnos_da_vaga(v), key=list(perfil.TURNOS).index),
         "localPeloCep": v.evidencia_local == "CEP",
         "distanciaKm": v.distancia_km,
         "distancia": descrever_distancia(v) if v.distancia_km is not None else None,
         "publicadaEm": v.publicada_em.isoformat() if v.publicada_em else None,
         "fontes": _fontes(v),
         "nova": v.nova,
+        "semExperiencia": v.sem_experiencia,
         "remota": v.remota and not v.regiao,
         "cidadeVizinha": v.regiao if v.regiao and v.regiao != cidade.nome else None,
     }
@@ -102,6 +146,7 @@ def _resultado_json(r: Resultado) -> dict:
     return {
         "tipo": "resultado",
         "filtro": r.filtro.descrever(),
+        "tipos": r.tipos,
         "pertoDe": r.referencia[0] if r.referencia else None,
         "executadoEm": r.executado_em.isoformat(timespec="seconds"),
         "resumo": {
@@ -111,13 +156,15 @@ def _resultado_json(r: Resultado) -> dict:
             "vizinhas": len(r.vizinhas) if r.cidades_vizinhas else None,
             "remotas": len(r.remotas),
             "antigas": r.antigas,
+            "perfilAvancado": r.perfil_avancado,
             "foraDoFiltro": r.fora_do_filtro,
             "foraDoRaio": r.fora_do_raio,
+            "foraDoPerfil": r.fora_do_perfil,
             "ocultasSemLocal": r.ocultas_sem_local,
         },
         "porFonte": r.por_fonte,
-        "linkedin": links.linkedin(cidade),
-        "linkedinRemotas": links.linkedin_remotas(),
+        "linkedin": links.linkedin(cidade, tipos=r.tipos),
+        "linkedinRemotas": links.linkedin_remotas(r.tipos),
         "erros": r.erros,
         "secoes": [
             {
@@ -151,6 +198,15 @@ async def buscar(busca: Busca) -> StreamingResponse:
             desconhecidas = [f for f in busca.fontes if f not in TODAS]
             if desconhecidas:
                 raise reg.RegiaoDesconhecida(f"Fonte(s) desconhecida(s): {', '.join(desconhecidas)}")
+            if busca.turno_escola and busca.turno_escola not in perfil.TURNOS:
+                raise reg.RegiaoDesconhecida(f"Turno desconhecido: {busca.turno_escola}")
+            if busca.escolaridade and busca.escolaridade not in perfil.ESCOLARIDADES:
+                raise reg.RegiaoDesconhecida(f"Escolaridade desconhecida: {busca.escolaridade}")
+            tipos_invalidos = [t for t in busca.tipos if t not in TIPOS]
+            if tipos_invalidos or not busca.tipos:
+                raise reg.RegiaoDesconhecida(
+                    f"Escolha pelo menos um tipo de vaga válido ({', '.join(TIPOS)})."
+                )
             if busca.raio is not None and not busca.perto_de:
                 raise reg.RegiaoDesconhecida("O raio só funciona junto com \"Perto de\".")
             fontes = [TODAS[f] for f in busca.fontes] or list(TODAS.values())
@@ -168,11 +224,20 @@ async def buscar(busca: Busca) -> StreamingResponse:
                         perto_de=(busca.perto_de or "").strip() or None,
                         vizinhas=extras,
                         incluir_remotas=busca.incluir_remotas,
+                        tipos=busca.tipos,
                         aviso=lambda m: fila.put_nowait({"tipo": "aviso", "mensagem": _sem_marcacao(m)}),
                     )
-            pos_filtrar(resultado, novas=busca.novas, somente_com_bairro=busca.somente_com_bairro, raio=busca.raio)
+            pos_filtrar(
+                resultado,
+                novas=busca.novas,
+                somente_com_bairro=busca.somente_com_bairro,
+                raio=busca.raio,
+                idade=busca.idade,
+                escolaridade=busca.escolaridade,
+                turno_escola=busca.turno_escola,
+            )
             await fila.put(_resultado_json(resultado))
-        except (reg.RegiaoDesconhecida, ReferenciaNaoEncontrada) as e:
+        except (reg.RegiaoDesconhecida, ReferenciaNaoEncontrada, BuscaInvalida) as e:
             await fila.put({"tipo": "erro", "mensagem": str(e)})
         except Exception as e:  # noqa: BLE001 - a tela precisa saber que algo deu errado
             await fila.put({"tipo": "erro", "mensagem": f"Falha inesperada: {e.__class__.__name__}: {e}"})

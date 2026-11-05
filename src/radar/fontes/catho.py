@@ -6,6 +6,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
+from ..filtro import APRENDIZ, ESTAGIO, PRIMEIRO_EMPREGO
 from ..http import Cliente
 from ..modelos import Vaga
 from ..regioes import Cidade
@@ -13,6 +14,7 @@ from ..texto import espacos
 from .base import Fonte, data_br
 
 SITE = "https://www.catho.com.br"
+TERMOS = {APRENDIZ: "aprendiz", ESTAGIO: "estagio", PRIMEIRO_EMPREGO: "primeiro-emprego"}
 
 
 def interpretar(pagina: str, uf: str) -> list[Vaga]:
@@ -50,9 +52,10 @@ class Catho(Fonte):
     nome = "catho"
     titulo = "Catho"
     site = SITE
+    tipos = frozenset(TERMOS)
 
-    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int) -> list[Vaga]:
-        base = f"{SITE}/vagas/aprendiz/{cidade.slug}-{cidade.uf.lower()}/"
+    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int, tipo: str = APRENDIZ) -> list[Vaga]:
+        base = f"{SITE}/vagas/{TERMOS[tipo]}/{cidade.slug}-{cidade.uf.lower()}/"
         vagas: list[Vaga] = []
         vistos: set[str] = set()
         for pagina in range(1, max_paginas + 1):

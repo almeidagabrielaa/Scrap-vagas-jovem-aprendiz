@@ -7,11 +7,14 @@ import re
 from datetime import date
 from urllib.parse import quote
 
+from ..filtro import APRENDIZ, ESTAGIO, MEIO_PERIODO
 from ..http import Cliente
 from ..modelos import Vaga
 from ..regioes import Cidade
 from ..texto import limpar_html
 from .base import ESTADOS, Fonte, data_iso
+
+_SIGLAS = {nome: sigla for sigla, nome in ESTADOS.items()}
 
 _NEXT_DATA = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
 
@@ -47,6 +50,7 @@ def interpretar(pagina: str) -> tuple[list[Vaga], int]:
                 descricao=limpar_html(j.get("description")),
                 publicada_em=data_iso(j.get("publishedDate")),
                 eh_aprendiz_na_fonte=j.get("type") == "vacancy_type_apprentice",
+                estagio_na_fonte=j.get("type") == "vacancy_type_internship",
                 remota=j.get("workplaceType") == "remote",
             )
         )
@@ -54,17 +58,19 @@ def interpretar(pagina: str) -> tuple[list[Vaga], int]:
     return vagas, total
 
 
+# Termo de busca por tipo. Para meio período, só "part time" funciona: a busca da Gupy procura no nome
+# da vaga, e "meio período" (com ou sem acento) não devolve nada nem no Rio de Janeiro.
+TERMOS = {APRENDIZ: "aprendiz", ESTAGIO: "estágio", MEIO_PERIODO: "part time"}
+
+
 class Gupy(Fonte):
     nome = "gupy"
     titulo = "Gupy"
     site = "https://portal.gupy.io"
+    tipos = frozenset(TERMOS)
+    tem_remotas = True
 
-    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int) -> list[Vaga]:
-        estado = ESTADOS.get(cidade.uf, cidade.uf)
-        base = (
-            f"{self.site}/job-search/term=aprendiz"
-            f"&city={quote(cidade.nome)}&state={quote(estado)}"
-        )
+    async def _paginas(self, cliente: Cliente, base: str, max_paginas: int) -> list[Vaga]:
         vagas: list[Vaga] = []
         vistos: set[str] = set()
         for pagina in range(1, max_paginas + 1):
@@ -77,24 +83,16 @@ class Gupy(Fonte):
             vagas.extend(novas)
             if len(vagas) >= total:
                 break
+        # A Gupy devolve o estado por extenso; padroniza para a sigla.
         for v in vagas:
-            # A Gupy devolve o estado por extenso; padroniza para a sigla.
-            if v.uf == estado:
-                v.uf = cidade.uf
+            v.uf = _SIGLAS.get(v.uf, v.uf)
         return vagas
 
-    tem_remotas = True
+    async def buscar(self, cliente: Cliente, cidade: Cidade, max_paginas: int, tipo: str = APRENDIZ) -> list[Vaga]:
+        estado = ESTADOS.get(cidade.uf, cidade.uf)
+        base = f"{self.site}/job-search/term={quote(TERMOS[tipo])}&city={quote(cidade.nome)}&state={quote(estado)}"
+        return await self._paginas(cliente, base, max_paginas)
 
-    async def buscar_remotas(self, cliente: Cliente, max_paginas: int) -> list[Vaga]:
-        base = f"{self.site}/job-search/term=aprendiz&workplaceTypes[]=remote"
-        vagas: list[Vaga] = []
-        for pagina in range(1, max_paginas + 1):
-            url = base if pagina == 1 else f"{base}&page={pagina}"
-            novas, total = interpretar((await cliente.get(url)).text)
-            vagas.extend(novas)
-            if not novas or len(vagas) >= total:
-                break
-        siglas = {nome: sigla for sigla, nome in ESTADOS.items()}
-        for v in vagas:
-            v.uf = siglas.get(v.uf, v.uf)
-        return [v for v in vagas if v.remota]
+    async def buscar_remotas(self, cliente: Cliente, max_paginas: int, tipo: str = APRENDIZ) -> list[Vaga]:
+        base = f"{self.site}/job-search/term={quote(TERMOS[tipo])}&workplaceTypes[]=remote"
+        return [v for v in await self._paginas(cliente, base, max_paginas) if v.remota]
