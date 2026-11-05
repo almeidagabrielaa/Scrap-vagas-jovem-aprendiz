@@ -1,0 +1,16 @@
+# Blueprint do Render: https://render.com/docs/blueprint-spec
+# A interface React já vai compilada em src/radar/web_dist (rode "npm run build" em web/ antes de commitar mudanças nela).
+services:
+  - type: web
+    name: radar-jovem-aprendiz
+    runtime: python
+    plan: free
+    region: virginia
+    branch: main
+    buildCommand: pip install .
+    startCommand: uvicorn radar.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/opcoes
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13"
