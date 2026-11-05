@@ -1,0 +1,219 @@
+# Regiões conhecidas pelo radar.
+#
+# Estrutura: cidade -> distritos -> bairros.
+# - "apelidos" (do distrito ou do bairro) são outras formas de escrever o nome
+#   que, se aparecerem no anúncio, identificam o local.
+# - Bairros com "ambiguo: true" têm nomes que também são palavras comuns
+#   ("Centro", "Passagem", "Dunas"...). Eles só contam quando o texto deixa claro
+#   que é um bairro: "bairro Centro", "Centro, Cabo Frio", "Rua X - Centro".
+#
+# - "coordenadas" [latitude, longitude] são usadas para calcular a distância (radar buscar --perto-de).
+#   Foram obtidas do OpenStreetMap e conferidas contra o distrito; bairros sem coordenada usam o
+#   endereço do anúncio quando houver. Corrija ou complete à vontade (ex.: copiando do Google Maps).
+#
+# Os bairros de Cabo Frio vêm da base de CEPs dos Correios (via ViaCEP).
+# Os Correios marcam os bairros do 2º Distrito com o sufixo "(Tamoios)".
+# Para adicionar outra cidade, copie o bloco de Cabo Frio e ajuste.
+# Cidades sem distritos (como as vizinhas no fim do arquivo) são filtradas só pela cidade.
+# "coordenadas" da cidade = centro urbano (OpenStreetMap), usado para a distância das vagas vizinhas.
+
+cabo-frio:
+  nome: Cabo Frio
+  uf: RJ
+  coordenadas: [-22.8804, -42.0189]  # centro da cidade
+  # Cidades incluídas quando a busca pede "cidades vizinhas".
+  vizinhas: [arraial-do-cabo, armacao-dos-buzios, sao-pedro-da-aldeia, iguaba-grande, araruama,
+             saquarema, rio-das-ostras, casimiro-de-abreu, macae]
+  distritos:
+    1:
+      nome: 1º Distrito (Sede)
+      apelidos: ["1o distrito", "primeiro distrito"]
+      bairros:
+        - nome: Centro
+          coordenadas: [-22.88206, -42.01562]
+          ambiguo: true
+        - nome: Agrisa
+        - nome: Algodoal
+        - nome: Botafogo
+          ambiguo: true
+        - nome: Braga
+          ambiguo: true
+        - nome: Cajueiro
+          coordenadas: [-22.8605, -41.99758]
+          ambiguo: true
+        - nome: Caminho de Búzios
+          coordenadas: [-22.83318, -42.00049]
+        - nome: Canto do Forte
+        - nome: Célula Mater
+        - nome: Colinas do Peró
+        - nome: Dunas
+          coordenadas: [-22.84169, -41.98776]
+          ambiguo: true
+        - nome: Dunas do Peró
+          coordenadas: [-22.84169, -41.98776]
+        - nome: Foguete
+          coordenadas: [-22.91732, -42.03658]
+          ambiguo: true
+        - nome: Gamboa
+          coordenadas: [-22.87386, -42.01824]
+          ambiguo: true
+        - nome: Guarani
+          coordenadas: [-22.89809, -42.04795]
+          ambiguo: true
+        - nome: Guriri
+          coordenadas: [-22.8511, -42.00021]
+        - nome: Itajuru
+          coordenadas: [-22.88091, -42.02508]
+        - nome: Jacaré
+          ambiguo: true
+        - nome: Jardim Caiçara
+        - nome: Jardim Esperança
+          coordenadas: [-22.84532, -42.02629]
+        - nome: Jardim Excelsior
+          coordenadas: [-22.88175, -42.02914]
+        - nome: Jardim Flamboyant
+          coordenadas: [-22.88074, -42.03899]
+        - nome: Jardim Machado
+          coordenadas: [-22.88035, -42.01353]
+        - nome: Jardim Náutilus
+        - nome: Jardim Olinda
+        - nome: Jardim Peró
+          coordenadas: [-22.83445, -42.02844]
+        - nome: Juscelino Kubitschek de Oliveira
+          coordenadas: [-22.88755, -42.02838]
+          apelidos: ["Bairro JK"]
+        - nome: Manoel Corrêa
+          coordenadas: [-22.90265, -42.04253]
+          apelidos: ["Manoel Correa", "Manuel Correa"]
+        - nome: Marlin
+          coordenadas: [-22.87051, -42.04769]
+          ambiguo: true
+        - nome: Monte Alegre
+          coordenadas: [-22.85013, -42.02233]
+        - nome: Nova Cabo Frio
+          coordenadas: [-22.8297, -42.00337]
+        - nome: Novo Portinho
+        - nome: Ogiva
+          coordenadas: [-22.87054, -42.00823]
+          ambiguo: true
+        - nome: Palmeiras
+          ambiguo: true
+        - nome: Parque Balneário São Francisco
+          coordenadas: [-22.84786, -41.99831]
+        - nome: Parque Burle
+          coordenadas: [-22.87844, -42.03062]
+        - nome: Parque Central
+        - nome: Parque Eldorado
+        - nome: Parque Riviera
+          coordenadas: [-22.88298, -42.02672]
+        - nome: Passagem
+          coordenadas: [-22.87694, -42.0101]
+          ambiguo: true
+        - nome: Perynas
+        - nome: Peró
+          coordenadas: [-22.85865, -41.99163]
+        - nome: Pontal do Peró
+          coordenadas: [-22.82308, -41.97346]
+        - nome: Portinho
+        - nome: Porto do Carro
+          coordenadas: [-22.85571, -42.0349]
+        - nome: Praia do Foguete
+          coordenadas: [-22.91732, -42.03658]
+        - nome: Praia do Siqueira
+          coordenadas: [-22.87621, -42.05219]
+          apelidos: ["Siqueira"]
+        - nome: Recanto das Dunas
+          coordenadas: [-22.86097, -41.98891]
+        - nome: Reserva do Peró
+          coordenadas: [-22.83941, -42.00769]
+        - nome: São Bento
+          coordenadas: [-22.87672, -42.0081]
+        - nome: São Cristóvão
+          coordenadas: [-22.89161, -42.04158]
+        - nome: Vila Blanche
+          coordenadas: [-22.86356, -41.98709]
+        - nome: Vila do Sol
+        - nome: Vila Nova
+          coordenadas: [-22.88617, -42.02436]
+          ambiguo: true
+    2:
+      nome: 2º Distrito (Tamoios)
+      apelidos: ["Tamoios", "2o distrito", "segundo distrito"]
+      bairros:
+        - nome: Aquarius
+          coordenadas: [-22.67367, -42.02809]
+        - nome: Bairro Sinagoga
+          coordenadas: [-22.6565, -42.00995]
+          apelidos: ["Sinagoga"]
+        - nome: Centro Hípico
+          coordenadas: [-22.58709, -41.99937]
+        - nome: Florestinha
+          coordenadas: [-22.68163, -42.00635]
+          apelidos: ["Florestinha I", "Florestinha II"]
+        - nome: Long Beach
+        - nome: Loteamento Praia do Coral
+          coordenadas: [-22.72335, -42.03057]
+          apelidos: ["Praia do Coral"]
+        - nome: Maria Joaquina
+          coordenadas: [-22.7277, -41.9902]
+        - nome: Nova Califórnia
+          coordenadas: [-22.62251, -42.02556]
+        - nome: Orla 500
+          coordenadas: [-22.67725, -41.997]
+        - nome: Samburá
+          coordenadas: [-22.62322, -42.00424]
+        - nome: Santa Margarida
+          apelidos: ["Santa Margarida I", "Santa Margarida II"]
+        - nome: Santo Antônio
+          ambiguo: true
+        - nome: São Jacinto
+          coordenadas: [-22.72673, -42.0261]
+        - nome: Terramar
+          coordenadas: [-22.60054, -41.99622]
+        - nome: Unamar
+          coordenadas: [-22.62105, -42.00355]
+        - nome: Verão Vermelho
+          coordenadas: [-22.66377, -42.00488]
+        - nome: Vista Alegre
+          ambiguo: true
+        - nome: Vivamar
+          coordenadas: [-22.72335, -42.03057]
+
+# ---------------------------------------------------------------- cidades vizinhas
+arraial-do-cabo:
+  nome: Arraial do Cabo
+  uf: RJ
+  coordenadas: [-22.9663, -42.0244]
+armacao-dos-buzios:
+  nome: Armação dos Búzios
+  apelidos: ["Búzios"]
+  uf: RJ
+  coordenadas: [-22.7598, -41.8875]
+sao-pedro-da-aldeia:
+  nome: São Pedro da Aldeia
+  uf: RJ
+  coordenadas: [-22.8385, -42.1032]
+iguaba-grande:
+  nome: Iguaba Grande
+  uf: RJ
+  coordenadas: [-22.8388, -42.2287]
+araruama:
+  nome: Araruama
+  uf: RJ
+  coordenadas: [-22.8733, -42.3429]
+saquarema:
+  nome: Saquarema
+  uf: RJ
+  coordenadas: [-22.9324, -42.4969]
+rio-das-ostras:
+  nome: Rio das Ostras
+  uf: RJ
+  coordenadas: [-22.5269, -41.945]
+casimiro-de-abreu:
+  nome: Casimiro de Abreu
+  uf: RJ
+  coordenadas: [-22.485, -42.2026]
+macae:
+  nome: Macaé
+  uf: RJ
+  coordenadas: [-22.3713, -41.7867]
