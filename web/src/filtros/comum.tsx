@@ -1,6 +1,75 @@
 /** Peças repetidas em todas as seções do painel de filtros. */
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Busca } from "../tipos";
+
+/**
+ * Campo de número que deixa digitar à vontade: guarda o texto enquanto a pessoa digita e só repassa o valor
+ * quando ele fica válido (entre `min` e `max`). Assim "17" pode ser digitado mesmo com o "1" sozinho inválido.
+ * Usa teclado numérico no celular (inputMode) em vez de type="number", que no Android/iOS se comporta mal.
+ */
+export function CampoNumero({
+  id,
+  valor,
+  aoMudar,
+  min,
+  max,
+  placeholder,
+  desabilitado,
+  vazioVale,
+}: {
+  id: string;
+  valor: number | null;
+  aoMudar: (valor: number | null) => void;
+  min: number;
+  max: number;
+  placeholder?: string;
+  desabilitado?: boolean;
+  /** O que vale com o campo vazio: null (ex.: idade não informada) ou um número padrão. */
+  vazioVale: number | null;
+}) {
+  const [texto, setTexto] = useState(valor === null ? "" : String(valor));
+  const valido = (t: string) => t !== "" && Number(t) >= min && Number(t) <= max;
+
+  // Mudança vinda de fora (ex.: "Zerar filtros"): atualiza o texto. Não mexe enquanto a pessoa está no meio
+  // de um número ainda inválido, senão o campo apagaria o que ela acabou de digitar.
+  useEffect(() => {
+    setTexto((atual) => {
+      if (valor === null) return valido(atual) ? "" : atual;
+      return Number(atual) === valor ? atual : String(valor);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valor]);
+
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      autoComplete="off"
+      maxLength={String(max).length}
+      placeholder={placeholder}
+      value={texto}
+      disabled={desabilitado}
+      aria-invalid={texto !== "" && !valido(texto)}
+      onChange={(e) => {
+        const t = e.target.value.replace(/\D/g, "");
+        setTexto(t);
+        if (valido(t)) aoMudar(Number(t));
+        // Vazio só vira "não informado" na hora quando isso é permitido (idade). Com padrão (raio), espera a
+        // pessoa sair do campo: apagar para redigitar não pode encher o campo de novo no meio da digitação.
+        else if (t === "" && vazioVale === null) aoMudar(null);
+      }}
+      onBlur={() => {
+        if (valido(texto) || (texto === "" && vazioVale === null)) return;
+        // Saiu com o campo vazio ou fora da faixa: vale o padrão (se vazio) ou o último valor válido.
+        const final = texto === "" ? vazioVale : valor;
+        if (final !== valor) aoMudar(final);
+        setTexto(final === null ? "" : String(final));
+      }}
+    />
+  );
+}
 
 /** O que toda seção recebe: a busca atual, como mudá-la e se há uma busca em andamento (trava os campos). */
 export interface PropsSecao {

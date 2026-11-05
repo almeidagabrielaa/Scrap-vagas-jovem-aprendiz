@@ -1,5 +1,5 @@
 import type { Cidade } from "../tipos";
-import { Ajuda, Secao, type PropsSecao } from "./comum";
+import { Ajuda, CampoNumero, Secao, type PropsSecao } from "./comum";
 
 const RAIO_PADRAO_KM = 10;
 
@@ -36,15 +36,14 @@ export function SecaoPertoDe({ busca, mudar, rodando, cidade }: PropsSecao & { c
             disabled={rodando}
           />
           <span>No máximo</span>
-          <input
+          <CampoNumero
             id="raio"
-            type="number"
             min={1}
             max={100}
-            step={1}
-            value={busca.raio ?? RAIO_PADRAO_KM}
-            onChange={(e) => mudar({ raio: Math.max(1, Number(e.target.value) || 1) })}
-            disabled={rodando || !usarRaio}
+            valor={busca.raio ?? RAIO_PADRAO_KM}
+            aoMudar={(raio) => mudar({ raio })}
+            vazioVale={RAIO_PADRAO_KM}
+            desabilitado={rodando || !usarRaio}
           />
           <span>km</span>
         </label>

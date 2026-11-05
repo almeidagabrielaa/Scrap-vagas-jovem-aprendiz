@@ -1,5 +1,5 @@
 import type { Escolaridade, Opcoes } from "../tipos";
-import { Ajuda, Chip, Secao, type PropsSecao } from "./comum";
+import { Ajuda, CampoNumero, Chip, Secao, type PropsSecao } from "./comum";
 
 /** Idade e escolaridade de quem procura: esconde vagas que pedem claramente outra coisa. */
 export function SecaoSobreTi({
@@ -14,18 +14,15 @@ export function SecaoSobreTi({
       <div className="linha">
         <label className="campo-curto">
           <span>Idade</span>
-          <input
+          <CampoNumero
             id="idade"
-            type="number"
             min={14}
             max={29}
             placeholder="ex.: 17"
-            value={busca.idade ?? ""}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              mudar({ idade: e.target.value && n >= 14 && n <= 29 ? n : null });
-            }}
-            disabled={rodando}
+            valor={busca.idade}
+            aoMudar={(idade) => mudar({ idade })}
+            vazioVale={null}
+            desabilitado={rodando}
           />
         </label>
         <label className="campo-longo">
