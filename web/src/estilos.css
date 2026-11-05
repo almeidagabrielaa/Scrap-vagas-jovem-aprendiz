@@ -161,7 +161,8 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 .raio { display: flex; align-items: center; gap: 0.45rem; font-size: 0.95rem; }
-.raio input[type="number"] { width: 4.75rem; padding: 0.35rem 0.5rem; }
+.raio input[inputmode="numeric"] { width: 4.75rem; padding: 0.35rem 0.5rem; }
+.filtros input[aria-invalid="true"] { border-color: var(--erro); }
 .opcao { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.95rem; cursor: pointer; }
 .opcao input, .raio input[type="checkbox"] { margin-top: 0.2rem; width: 1.1rem; height: 1.1rem; accent-color: var(--rosa); flex: none; }
 .fontes { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem 0.75rem; }
