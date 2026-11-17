@@ -32,7 +32,7 @@ from .saida import _fontes, descrever_distancia, descrever_local, montar_secoes
 
 PASTA_WEB = Path(__file__).parent / "web_dist"
 
-app = FastAPI(title="FMT - jovem aprendiz")
+app = FastAPI(title="Primeiro Trampo")
 _uma_busca_por_vez = asyncio.Lock()
 
 

@@ -1,6 +1,6 @@
 // Service worker do app instalável: busca sempre da rede e guarda uma cópia da interface para abrir sem internet
 // (o guia e as vagas salvas funcionam offline). A API (/api/) nunca é guardada: vaga velha não serve.
-const CACHE = "fmt-v1";
+const CACHE = "primeiro-trampo-v1";
 
 self.addEventListener("install", () => self.skipWaiting());
 
