@@ -26,11 +26,12 @@ const BUSCA_PADRAO: Busca = {
   turno_escola: null,
 };
 
-const CHAVE = "fmt-jovem-aprendiz:busca";
+const CHAVE = "primeiro-trampo:busca";
+const CHAVE_ANTIGA = "fmt-jovem-aprendiz:busca"; // nome anterior do app: quem já usava não perde a última busca
 
 function buscaSalva(): Busca {
   try {
-    const salva = localStorage.getItem(CHAVE);
+    const salva = localStorage.getItem(CHAVE) ?? localStorage.getItem(CHAVE_ANTIGA);
     if (!salva) return BUSCA_PADRAO;
     const busca: Busca = { ...BUSCA_PADRAO, ...JSON.parse(salva) };
     // Busca salva por uma versão antiga (sem tipos) ou com tipo que não existe mais.
@@ -130,13 +131,13 @@ export default function App() {
     <div className="pagina">
       <header className="topo">
         <div className="marca" aria-hidden="true">
-          FMT
+          1º
         </div>
         <div>
           <h1>
-            FMT - <span className="destaque-titulo">jovem aprendiz</span>
+            Primeiro <span className="destaque-titulo">Trampo</span>
           </h1>
-          <p>Teu primeiro trampo (aprendiz, estágio ou meio período) tá mais perto do que tu pensa. Bora achar? ✌️</p>
+          <p>Aprendiz, estágio, meio período ou primeiro emprego: tua vaga tá mais perto do que tu pensa. Bora achar? ✌️</p>
         </div>
         <nav className="abas" aria-label="Seções">
           <button type="button" className={`chip${aba === "vagas" ? " marcado" : ""}`} aria-pressed={aba === "vagas"} onClick={() => setAba("vagas")}>

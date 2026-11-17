@@ -15,7 +15,7 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-## Interface web (FMT - jovem aprendiz)
+## Interface web (Primeiro Trampo)
 
 ```powershell
 radar web

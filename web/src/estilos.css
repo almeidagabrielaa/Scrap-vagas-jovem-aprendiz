@@ -70,7 +70,7 @@ button, input, select { font: inherit; color: inherit; }
 .marca {
   width: 4rem; height: 4rem; border-radius: 16px; display: grid; place-items: center; flex: none;
   background: var(--rosa); color: #fff; border: 3px solid var(--tinta); box-shadow: var(--sombra);
-  font: 800 1.05rem/1 var(--fonte-titulo); letter-spacing: 0.02em; transform: rotate(-6deg);
+  font: 800 1.5rem/1 var(--fonte-titulo); letter-spacing: 0.02em; transform: rotate(-6deg);
 }
 .topo h1 { font-size: clamp(1.6rem, 4.2vw, 2.6rem); font-weight: 800; letter-spacing: -0.01em; }
 .destaque-titulo {
@@ -328,5 +328,5 @@ button, input, select { font: inherit; color: inherit; }
   .numeros { width: 100%; }
   .numeros div { flex: 1; min-width: 4.5rem; }
   .opcoes-distrito, .fontes { grid-template-columns: 1fr; }
-  .marca { width: 3.2rem; height: 3.2rem; font-size: 0.9rem; }
+  .marca { width: 3.2rem; height: 3.2rem; font-size: 1.2rem; }
 }

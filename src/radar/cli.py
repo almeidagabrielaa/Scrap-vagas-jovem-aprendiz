@@ -285,7 +285,7 @@ def web(
     porta: int = typer.Option(8000, "--porta", help="Porta do servidor local."),
     abrir: bool = typer.Option(True, "--abrir/--nao-abrir", help="Abre o navegador automaticamente."),
 ) -> None:
-    """Abre a interface no navegador (FMT - jovem aprendiz)."""
+    """Abre a interface no navegador (Primeiro Trampo)."""
     import threading
     import webbrowser
 

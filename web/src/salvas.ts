@@ -2,12 +2,13 @@
 import { useEffect, useState } from "react";
 import type { Vaga } from "./tipos";
 
-const CHAVE = "fmt-jovem-aprendiz:salvas";
+const CHAVE = "primeiro-trampo:salvas";
+const CHAVE_ANTIGA = "fmt-jovem-aprendiz:salvas"; // nome anterior do app: quem já usava não perde as vagas salvas
 const LIMITE = 100;
 
 function ler(): Vaga[] {
   try {
-    const lista = JSON.parse(localStorage.getItem(CHAVE) ?? "[]");
+    const lista = JSON.parse(localStorage.getItem(CHAVE) ?? localStorage.getItem(CHAVE_ANTIGA) ?? "[]");
     return Array.isArray(lista) ? lista : [];
   } catch {
     return []; // navegador sem armazenamento: a lista só não sobrevive ao recarregar
